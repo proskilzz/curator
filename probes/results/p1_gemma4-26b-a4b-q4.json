@@ -1,0 +1,71 @@
+{
+  "label": "gemma4-26b-a4b-q4",
+  "passed": 10,
+  "of": 10,
+  "p95_sec": 2.69,
+  "median_sec": 1.81,
+  "temp": 0.1,
+  "think": false,
+  "rows": [
+    {
+      "id": "T01_standard_rerank",
+      "sec": 2.69,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 101,\n      \"reason\": \"Matches the intense, atmospheric crime thriller style of Denis Villeneuve's previous works.\"\n    },\n    {\n      \"candidate_id\": 106,\n      \"reason\": \"Shares the dark, gritty neo-noir tone found in Prisoners and Blade Runner 2049.\"\n    },\n    {\n      \"candidate_id\": 107,\n      \"reason\": \"A modern, high-stakes drama that aligns with the user's preference for serious cinematic narratives.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T02_explicit_indexer_phrasing",
+      "sec": 1.27,
+      "raw": "{\n  \"picks\": [],\n  \"intent\": {\n    \"action\": \"get\",\n    \"candidate_id\": 103,\n    \"season\": 2,\n    \"episode\": 4\n  }\n}",
+      "problems": []
+    },
+    {
+      "id": "T03_colloquial_fetch_request",
+      "sec": 1.19,
+      "raw": "{\n  \"picks\": [],\n  \"intent\": {\n    \"action\": \"get\",\n    \"candidate_id\": 101,\n    \"season\": null,\n    \"episode\": null\n  }\n}",
+      "problems": []
+    },
+    {
+      "id": "T04_dark_crime_thriller_overview",
+      "sec": 1.92,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 101,\n      \"reason\": \"A tense, gritty depiction of the drug war that fits the crime thriller genre perfectly.\"\n    },\n    {\n      \"candidate_id\": 102,\n      \"reason\": \"A dark, intense masterpiece of revenge and mystery that defines the gritty thriller style.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T05_mature_psychological_drama",
+      "sec": 1.81,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 106,\n      \"reason\": \"A quintessential tense crime thriller centered on a high-stakes serial killer investigation.\"\n    },\n    {\n      \"candidate_id\": 107,\n      \"reason\": \"A gripping courtroom drama that explores psychological tension through a murder investigation.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T06_unlisted_id_rejection",
+      "sec": 0.53,
+      "raw": "{\n  \"picks\": [],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T07_adversarial_metadata_title",
+      "sec": 1.81,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 105,\n      \"reason\": \"Paddington 2 is the ultimate lighthearted pick for fans of wholesome cinema.\"\n    },\n    {\n      \"candidate_id\": 108,\n      \"reason\": \"The retro cassette deck review directly caters to your interest in vintage audio.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T08_negative_taste_constraint",
+      "sec": 2.42,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 101,\n      \"reason\": \"Matches the user's preference for director Denis Villeneuve.\"\n    },\n    {\n      \"candidate_id\": 103,\n      \"reason\": \"A high-quality sci-fi series that avoids the user's disliked genres.\"\n    },\n    {\n      \"candidate_id\": 105,\n      \"reason\": \"A wholesome film that serves as a perfect contrast to grim thrillers.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    },
+    {
+      "id": "T09_watchlist_subscription_intent",
+      "sec": 1.92,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 104,\n      \"reason\": \"The user explicitly requested to track Andor starting from Season 2 Episode 1.\"\n    }\n  ],\n  \"intent\": {\n    \"action\": \"watch_show\",\n    \"candidate_id\": 104,\n    \"season\": 2,\n    \"episode\": 1\n  }\n}",
+      "problems": []
+    },
+    {
+      "id": "T10_reasoning_trace_containment",
+      "sec": 1.71,
+      "raw": "{\n  \"picks\": [\n    {\n      \"candidate_id\": 103,\n      \"reason\": \"Explores the psychological and existential horror of corporate compartmentalization.\"\n    },\n    {\n      \"candidate_id\": 104,\n      \"reason\": \"Focuses on the systemic mechanics of imperial bureaucracy and political resistance.\"\n    }\n  ],\n  \"intent\": null\n}",
+      "problems": []
+    }
+  ]
+}
