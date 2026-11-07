@@ -10,8 +10,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from curator.app.picking import ModelFactory, TitleSource, make_picks
 from curator.app.view import ago_text, movie_card, show_card
 from curator.enrich import EnrichError, KeyMissing, default_enricher
+from curator.llm import LocalModel, default_model_path
 from curator.model import Enrichment, Episode, Lookup, Parsed, Skipped
 from curator.scan import scan_folder
 from curator.store import (
@@ -41,12 +43,16 @@ class Api:
         db_path: Path,
         enricher: EnricherFactory = default_enricher,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        titles: Callable[[], TitleSource] | None = None,
+        model: ModelFactory = lambda: LocalModel(default_model_path()),
     ) -> None:
         self.root = root
         self.db_path = db_path
         self._found: list[Parsed] = []
         self._enricher = enricher
         self._clock = clock
+        self._titles = titles or (lambda: default_enricher().title)
+        self._model = model
 
     def scan(self) -> dict[str, Any]:
         """Scan the folder (saves nothing). Every item comes back ticked except files the
@@ -121,6 +127,18 @@ class Api:
         finally:
             conn.close()
         return {"error": error, "looked_up": looked_up, **library}
+
+    def picks(self) -> dict[str, Any]:
+        """3 picks from titles like the library (TMDB + plain-code score + local model)."""
+        conn = connect(self.db_path)
+        try:
+            return make_picks(conn, self._titles, self._model, self._clock())
+        except KeyMissing:
+            return {"error": NO_KEY, "picks": []}
+        except EnrichError:
+            return {"error": OFFLINE, "picks": []}
+        finally:
+            conn.close()
 
     def _library(self, conn: sqlite3.Connection) -> dict[str, Any]:
         today = self._clock().astimezone().date()

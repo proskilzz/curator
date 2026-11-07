@@ -6,10 +6,11 @@ Repo is PUBLIC: never commit personal paths, Downloads file names, keys or index
 ## Commands
 - `./check` — ruff (complexity ≤ 6), ruff format, mypy --strict, import-linter, pytest (cov ≥ 90%). Must pass.
 - `uv run curator [--folder X] [--db PATH]` — opens the Mac window (pywebview). Scan button → review list (all ticked) → Save → auto "Check new episodes" (TMDB + TVmaze). Defaults ~/Downloads, ~/Library/Application Support/Curator/curator.db
+- `CURATOR_MODEL=<gguf> uv run curator --picks` — 3 picks in the terminal (TMDB + local model), no window. Model file: `$CURATOR_MODEL`, else `model.gguf` next to the DB.
 - Test the window headless-ish: a script with `webview.start(fn, w)` + `w.evaluate_js(...)` clicks buttons and reads the DOM (see tests via `curator.app.Api` for logic).
 
 ## Layout (import-linter enforces it)
-app → scan | store | enrich → progress → model. The page calls Python via `window.pywebview.api` (no web server, no port).  scan is offline (no sqlite/socket/urllib/http); store is the only SQL; enrich is the only network code (no SQL). Tests never hit the network: pass a fake `fetch` / `enricher` factory.
+app → scan | store | enrich | picks | llm → progress → model. The page calls Python via `window.pywebview.api` (no web server, no port).  scan is offline (no sqlite/socket/urllib/http); store is the only SQL; enrich is the only network code (no SQL). picks is pure (no network/SQL/subprocess); llm is the only other network code (127.0.0.1 llama-server, no SQL). Tests never hit the network: pass a fake `fetch` / `enricher` / `titles` / `model` factory.
 
 ## Invariants
 - library_items.media_key is an offline key (`local:tv:<slug>`, `local:movie:<slug>-<year>`) and never changes; slice 4 maps it to TMDB in a separate table.
@@ -19,6 +20,8 @@ app → scan | store | enrich → progress → model. The page calls Python via 
 - Scan saves nothing; only Save writes (and stamps scan_history). Unticked files go to excluded_files (shown unticked next scan); a show with no files left loses its progress row.
 - enrichment_cache is keyed by the local media_key. TTL: shows 12 h, movies 30 d, not-found 3 d. TVmaze is looked up by tvdb/imdb id only, never by title.
 - TMDB key: Keychain `curator-tmdb`; errors are raised `from None` so the URL (with the key) never reaches a message.
+- Picks (Argon §6): newest 10 library titles → TMDB details+recommendations (title_cache, 30 d) → shortlist 30 → full score → top 15 (one per name) → model fills high_affinity/creator_tone/wildcard → `picks.check` in code. The model never adds ids: schema enum = batch numbers, and check() replaces any out-of-batch id, repeat, or reason that names no shared creator/keyword (seed title only when nothing is shared). Model down → 3 plain-code picks.
+- llama-server: Curator starts it per batch and stops it (owner's choice 2026-11-06); a server already on :8099 is used and left running.
 - Scanner trusts an episode only with an explicit S01E02 / 1x02 in the name; a movie needs a year or a release tag.
 
 ## Pitfalls
@@ -26,4 +29,5 @@ app → scan | store | enrich → progress → model. The page calls Python via 
 - 2026-11-06: guessit drops subtitles: "Dune Part Two (2024)" → title "Dune". Enricher must search with the year.
 - 2026-11-06: import-linter needs `include_external_packages = true` to forbid stdlib modules.
 - 2026-11-06: `screencapture` from Terminal gives a black image (no Screen Recording permission); verify the window via evaluate_js instead.
+- 2026-11-06: Gemma wrote "shares the wilderness keyword" (made up) and it passed because it also named the seed title → evidence = shared creators/keywords first. TMDB has two "Top Boy" (2011, 2019) → rank() keeps one per name.
 - 2026-11-06: TMDB /search/movie?year=2024 for "Dune" returns Dune (2021) first (year filter matches re-releases) → `pick()` prefers the result whose release year equals the asked year.

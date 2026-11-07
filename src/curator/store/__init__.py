@@ -3,9 +3,15 @@
 from curator.store.db import ScanCounts, connect, default_db_path, get_progress, save_scan
 from curator.store.enrichment import due_lookups, enrichments, save_enrichment
 from curator.store.history import last_saved, present_paths, record_save
+from curator.store.picks import cached_titles, library_refs, save_batch, save_title, seed_refs
 from curator.store.review import excluded_paths, library_paths, save_review
 
 __all__ = [
+    "seed_refs",
+    "save_title",
+    "save_batch",
+    "library_refs",
+    "cached_titles",
     "ScanCounts",
     "connect",
     "default_db_path",

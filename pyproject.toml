@@ -52,11 +52,11 @@ root_package = "curator"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Layers: app on top, then scan/store/enrich (independent), then progress, then model"
+name = "Layers: app on top, then scan/store/enrich/picks/llm (independent), then progress, then model"
 type = "layers"
 layers = [
     "curator.app",
-    "curator.scan | curator.store | curator.enrich",
+    "curator.scan | curator.store | curator.enrich | curator.picks | curator.llm",
     "curator.progress",
     "curator.model",
 ]
@@ -69,7 +69,21 @@ forbidden_modules = ["sqlite3", "socket", "urllib", "http", "curator.store"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "Enrich is the only network code and runs no SQL"
+name = "Picks is pure: no network, SQL or processes"
+type = "forbidden"
+source_modules = ["curator.picks"]
+forbidden_modules = ["sqlite3", "socket", "urllib", "http", "subprocess"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "The local model client runs no SQL"
+type = "forbidden"
+source_modules = ["curator.llm"]
+forbidden_modules = ["sqlite3"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Enrich is the only TMDB/TVmaze code and runs no SQL"
 type = "forbidden"
 source_modules = ["curator.enrich"]
 forbidden_modules = ["sqlite3", "curator.store", "curator.scan"]

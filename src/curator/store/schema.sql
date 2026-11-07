@@ -67,3 +67,49 @@ CREATE TABLE IF NOT EXISTS scan_history (
     folder              TEXT PRIMARY KEY,
     saved_at            TEXT NOT NULL
 );
+
+-- Slice 5 (picks). TMDB details + recommendations per title, 30 days. info_json NULL = not found.
+CREATE TABLE IF NOT EXISTS title_cache (
+    kind                TEXT NOT NULL CHECK (kind IN ('movie', 'tv')),
+    tmdb_id             INTEGER NOT NULL,
+    info_json           TEXT,
+    fetched_at          TEXT NOT NULL,
+    expires_at          TEXT NOT NULL,
+    PRIMARY KEY (kind, tmdb_id)
+);
+
+-- One batch = the top 15 by plain-code score; `number` is the id the local model sees.
+CREATE TABLE IF NOT EXISTS candidates (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id            TEXT NOT NULL,
+    number              INTEGER NOT NULL,
+    kind                TEXT NOT NULL CHECK (kind IN ('movie', 'tv')),
+    tmdb_id             INTEGER NOT NULL,
+    title               TEXT NOT NULL,
+    release_year        INTEGER,
+    seeds_json          TEXT NOT NULL,
+    shared_creators_json TEXT NOT NULL DEFAULT '[]',
+    shared_keywords_json TEXT NOT NULL DEFAULT '[]',
+    deterministic_score REAL NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'pooled'
+                        CHECK (status IN ('pooled', 'picked', 'dismissed', 'permanently_suppressed')),
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    UNIQUE (batch_id, kind, tmdb_id),
+    UNIQUE (batch_id, number)
+);
+
+-- The 3 picks of a batch, one per slot. reason_by 'code' = the model's reason was replaced.
+CREATE TABLE IF NOT EXISTS picks (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id            TEXT NOT NULL,
+    candidate_id        INTEGER NOT NULL REFERENCES candidates(id),
+    rank_order          INTEGER NOT NULL CHECK (rank_order BETWEEN 1 AND 3),
+    slot_type           TEXT NOT NULL CHECK (slot_type IN ('high_affinity', 'creator_tone', 'wildcard')),
+    llm_model           TEXT NOT NULL,
+    llm_reason          TEXT NOT NULL,
+    reason_by           TEXT NOT NULL CHECK (reason_by IN ('model', 'code')),
+    user_action         TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (user_action IN ('pending', 'got_it', 'thumbs_up', 'thumbs_down', 'already_seen')),
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    UNIQUE (batch_id, slot_type)
+);

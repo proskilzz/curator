@@ -128,3 +128,65 @@ class Enrichment:
     @property
     def found(self) -> bool:
         return self.tmdb_id is not None
+
+
+# --- Picks (slice 5): enrich -> store -> picks -> llm -> store -> app ---
+
+SLOTS = ("high_affinity", "creator_tone", "wildcard")
+
+
+@dataclass(frozen=True)
+class Title:
+    """One TMDB title with what the scorer needs. Text is already cleaned by enrich."""
+
+    kind: str  # 'movie' or 'tv'
+    tmdb_id: int
+    title: str
+    year: int | None = None
+    overview: str = ""  # cleaned, at most 250 chars
+    genres: tuple[str, ...] = ()  # names; empty for a bare recommendation
+    keywords: tuple[str, ...] = ()
+    creators: tuple[str, ...] = ()  # directors + writers (movie), created_by (tv)
+    popularity: float = 0.0
+    vote_average: float = 0.0
+    vote_count: int = 0
+    runtime_minutes: int | None = None
+    adult: bool = False
+
+    @property
+    def ref(self) -> tuple[str, int]:
+        return (self.kind, self.tmdb_id)
+
+
+@dataclass(frozen=True)
+class TitleInfo:
+    """A title plus what TMDB recommends for it (one call: details + recommendations)."""
+
+    title: Title
+    recommendations: tuple[Title, ...] = ()
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """A scored title that is not in the library. `number` is its id in the LLM prompt (1..15)."""
+
+    number: int
+    title: Title
+    score: float
+    seeds: tuple[str, ...]  # library titles that recommended it
+    shared_creators: tuple[str, ...] = ()
+    shared_keywords: tuple[str, ...] = ()
+
+    @property
+    def evidence(self) -> tuple[str, ...]:
+        """What a reason must name: a shared creator or keyword; a seed title only when there
+        is none (naming the seed alone let a made-up keyword through, 2026-11-06)."""
+        return (self.shared_creators + self.shared_keywords) or self.seeds
+
+
+@dataclass(frozen=True)
+class Pick:
+    slot: str  # one of SLOTS
+    number: int  # Candidate.number
+    reason: str  # at most 160 chars, names something in Candidate.evidence
+    reason_by: str  # 'model', or 'code' when the model's reason was missing or vague
