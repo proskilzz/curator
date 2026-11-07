@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from curator.app.view import movie_card, show_card
+from curator.app.view import ago_text, movie_card, show_card
 from curator.enrich import EnrichError, KeyMissing, default_enricher
 from curator.model import Enrichment, Episode, Lookup, Parsed, Skipped
 from curator.scan import scan_folder
@@ -20,7 +20,10 @@ from curator.store import (
     enrichments,
     excluded_paths,
     get_progress,
+    last_saved,
     library_paths,
+    present_paths,
+    record_save,
     save_enrichment,
     save_review,
 )
@@ -53,11 +56,39 @@ class Api:
         skipped = Counter(r.reason.value for r in results if isinstance(r, Skipped))
         conn = connect(self.db_path)
         known, excluded = library_paths(conn, self.root), excluded_paths(conn, self.root)
+        items = [_item(i, p, known, excluded) for i, p in enumerate(self._found)]
+        changes = self._changes(conn, items, known)
         conn.close()
         return {
             "folder": str(self.root),
             "skipped": [{"reason": r, "count": n} for r, n in skipped.most_common()],
-            "items": [_item(i, p, known, excluded) for i, p in enumerate(self._found)],
+            "items": items,
+            "changes": changes,
+        }
+
+    def opened(self) -> dict[str, Any]:
+        """What the window shows when it opens: when this folder was last saved and the
+        library as it was looked up last time. No scan, no network."""
+        conn = connect(self.db_path)
+        try:
+            when = last_saved(conn, self.root)
+            library = self._library(conn)
+        finally:
+            conn.close()
+        last_scan = ago_text(when, self._clock()) if when else ""
+        return {"folder": str(self.root), "last_scan": last_scan, **library}
+
+    def _changes(
+        self, conn: sqlite3.Connection, items: list[dict[str, Any]], known: set[str]
+    ) -> dict[str, Any]:
+        """A rescan compared with the last save: new files, files still there, files gone."""
+        when = last_saved(conn, self.root)
+        found = {p.file.path for p in self._found}
+        return {
+            "since": ago_text(when, self._clock()) if when else "",
+            "new": sum(1 for i in items if i["status"] == "new"),
+            "known": len(found & known),
+            "gone": len(present_paths(conn, self.root) - found),
         }
 
     def save(self, keep_ids: list[int]) -> dict[str, Any]:
@@ -65,6 +96,7 @@ class Api:
         keep = {self._found[i].file.path for i in keep_ids if 0 <= i < len(self._found)}
         conn = connect(self.db_path)
         counts, excluded = save_review(conn, self.root, self._found, keep)
+        record_save(conn, self.root, self._clock())
         shows = sorted({(p.title, p.media_key) for p in self._found if p.file.path in keep})
         progress = [(t, get_progress(conn, k)) for t, k in shows]
         conn.close()
@@ -85,17 +117,18 @@ class Api:
         conn = connect(self.db_path)
         try:
             looked_up, error = self._look_up_due(conn)
-            today = self._clock().astimezone().date()
-            known = enrichments(conn)
-            shows = [
-                show_card(e, get_progress(conn, e.media_key), today)
-                for e in known
-                if e.kind == "tv"
-            ]
-            movies = [movie_card(e) for e in known if e.kind == "movie"]
+            library = self._library(conn)
         finally:
             conn.close()
-        return {"error": error, "looked_up": looked_up, "shows": shows, "movies": movies}
+        return {"error": error, "looked_up": looked_up, **library}
+
+    def _library(self, conn: sqlite3.Connection) -> dict[str, Any]:
+        today = self._clock().astimezone().date()
+        known = enrichments(conn)
+        shows = [
+            show_card(e, get_progress(conn, e.media_key), today) for e in known if e.kind == "tv"
+        ]
+        return {"shows": shows, "movies": [movie_card(e) for e in known if e.kind == "movie"]}
 
     def _look_up_due(self, conn: sqlite3.Connection) -> tuple[int, str]:
         due = due_lookups(conn, self._clock())

@@ -44,3 +44,16 @@ def test_show_card_next_line() -> None:
         "next": "",
         "genres": "",
     }
+
+
+def test_ago_text() -> None:
+    from datetime import datetime, timedelta
+
+    from curator.app.view import ago_text
+
+    now = datetime(2026, 11, 6, 12, 0)
+    assert ago_text(now - timedelta(seconds=20), now) == "just now"
+    assert ago_text(now - timedelta(minutes=1), now) == "1 minute ago"
+    assert ago_text(now - timedelta(hours=5, minutes=9), now) == "5 hours ago"
+    assert ago_text(now - timedelta(days=1, hours=2), now) == "1 day ago"
+    assert ago_text(now - timedelta(days=12), now) == "12 days ago"

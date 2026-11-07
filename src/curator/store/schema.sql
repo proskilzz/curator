@@ -61,3 +61,9 @@ CREATE TABLE IF NOT EXISTS enrichment_cache (
     expires_at          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_enrichment_tmdb ON enrichment_cache(tmdb_id, kind);
+
+-- When the user last saved a scan of each folder (shown as "last scanned 3 days ago").
+CREATE TABLE IF NOT EXISTS scan_history (
+    folder              TEXT PRIMARY KEY,
+    saved_at            TEXT NOT NULL
+);

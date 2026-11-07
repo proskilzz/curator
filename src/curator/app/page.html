@@ -109,7 +109,15 @@ async function scan() {
   renderSummary(data);
   renderList();
   $("scan").disabled = false;
-  $("scan").textContent = "Scan again";
+  $("scan").textContent = "Rescan Downloads";
+}
+
+async function opened() {
+  const r = await window.pywebview.api.opened();
+  if (!r.last_scan) return;
+  $("folder").textContent = `${r.folder} · last scanned ${r.last_scan}. Rescan to pick up anything new.`;
+  $("scan").textContent = "Rescan Downloads";
+  if (r.shows.length || r.movies.length) renderLibrary(r, false);
 }
 
 function renderSummary(data) {
@@ -120,6 +128,11 @@ function renderSummary(data) {
   box.replaceChildren();
   box.append(el("p", "t",
     `Found ${plural(movies, "movie")} and ${plural(eps, "episode")} from ${plural(shows, "show")}.`));
+  const c = data.changes;
+  if (c.since) {
+    const gone = c.gone ? `, ${c.gone} no longer on disk` : "";
+    box.append(el("p", "", `Since your last scan (${c.since}): ${c.new} new, ${c.known} already in your library${gone}.`));
+  }
   const skippedTotal = data.skipped.reduce((s, x) => s + x.count, 0);
   if (skippedTotal) {
     box.append(el("p", "muted", `Ignored ${skippedTotal} other videos:`));
@@ -265,7 +278,7 @@ function movieItem(m) {
   return box;
 }
 
-function renderLibrary(r) {
+function renderLibrary(r, scroll = true) {
   const lib = $("library");
   lib.replaceChildren();
   if (r.error) lib.append(el("div", "panel warn", r.error));
@@ -281,11 +294,12 @@ function renderLibrary(r) {
     list.forEach((x) => g.append(make(x)));
     lib.append(g);
   }
-  lib.scrollIntoView({ behavior: "smooth" });
+  if (scroll) lib.scrollIntoView({ behavior: "smooth" });
 }
 
 $("scan").addEventListener("click", scan);
 $("check").addEventListener("click", check);
+window.addEventListener("pywebviewready", opened);
 $("save").addEventListener("click", save);
 $("all").addEventListener("click", () => setAll(true));
 $("none").addEventListener("click", () => setAll(false));

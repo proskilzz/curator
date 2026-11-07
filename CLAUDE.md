@@ -15,7 +15,8 @@ app → scan | store | enrich → progress → model. The page calls Python via 
 - library_items.media_key is an offline key (`local:tv:<slug>`, `local:movie:<slug>-<year>`) and never changes; slice 4 maps it to TMDB in a separate table.
 - show_progress only moves forward. Only files NEW to the DB move it; a file coming back after deletion does not.
 - 4+ new episodes of one season in one scan = pack → progress at the pack's first episode, 'unverified_pack'.
-- Scan saves nothing; only Save writes. Unticked files go to excluded_files (shown unticked next scan); a show with no files left loses its progress row.
+- Opening the window (`Api.opened`) reads the DB only: last save time (scan_history, falls back to newest last_seen_at) + cached library; no scan, no network.
+- Scan saves nothing; only Save writes (and stamps scan_history). Unticked files go to excluded_files (shown unticked next scan); a show with no files left loses its progress row.
 - enrichment_cache is keyed by the local media_key. TTL: shows 12 h, movies 30 d, not-found 3 d. TVmaze is looked up by tvdb/imdb id only, never by title.
 - TMDB key: Keychain `curator-tmdb`; errors are raised `from None` so the URL (with the key) never reaches a message.
 - Scanner trusts an episode only with an explicit S01E02 / 1x02 in the name; a movie needs a year or a release tag.

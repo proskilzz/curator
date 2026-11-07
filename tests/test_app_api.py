@@ -208,3 +208,43 @@ def test_refresh_without_a_key_or_network(tmp_path: Path) -> None:
     r = api.refresh()
     assert r["error"].startswith("Couldn't reach") and r["looked_up"] == 1
     assert len(r["movies"]) == 1
+
+
+# --- Reopen the app days later and rescan ---
+
+
+def test_reopen_shows_last_scan_and_rescan_reports_what_changed(tmp_path: Path) -> None:
+    fake, clock = FakeEnricher(), Clock()
+    first = _saved(tmp_path, fake, clock)
+    first.refresh()
+    root, db = first.root, first.db_path
+
+    clock.now += timedelta(days=3)  # the app was closed and forgotten
+    again = Api(root, db, enricher=lambda: fake, clock=clock)
+    opened = again.opened()
+    assert opened["last_scan"] == "3 days ago"
+    assert [s["title"] for s in opened["shows"]] == ["Night Office"]
+    assert len(fake.asked) == 3  # opening the window made no lookups
+
+    (root / "Night.Office.S02E03.1080p.WEB-DL.mkv").unlink()
+    _make(root, ["Night.Office.S02E05.1080p.WEB-DL.mkv"])
+    found = again.scan()
+    assert found["changes"] == {"since": "3 days ago", "new": 1, "known": 3, "gone": 1}
+    assert [i["status"] for i in found["items"] if i["detail"].endswith("episode 5")] == ["new"]
+    again.save([i["id"] for i in found["items"]])
+    assert again.opened()["last_scan"] == "just now"
+
+
+def test_first_open_has_no_last_scan(tmp_path: Path) -> None:
+    api, _, _ = _api(tmp_path, [])
+    assert api.opened() == {"folder": str(api.root), "last_scan": "", "shows": [], "movies": []}
+    assert api.scan()["changes"] == {"since": "", "new": 0, "known": 0, "gone": 0}
+
+
+def test_library_saved_before_scan_history_still_shows_last_scan(tmp_path: Path) -> None:
+    clock = Clock()
+    api = _saved(tmp_path, FakeEnricher(), clock)
+    with sqlite3.connect(api.db_path) as conn:
+        conn.execute("DELETE FROM scan_history")
+        conn.execute("UPDATE library_items SET last_seen_at = '2026-11-04T12:00:00Z'")
+    assert api.opened()["last_scan"] == "2 days ago"

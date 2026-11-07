@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from curator.model import Enrichment, EpisodeRef, Progress
@@ -64,3 +64,13 @@ def when_text(air_date: str | None, today: date) -> str:
 
 def _code(season: int, episode: int) -> str:
     return f"S{season:02d}E{episode:02d}"
+
+
+def ago_text(then: datetime, now: datetime) -> str:
+    """'just now', '5 minutes ago', '3 hours ago', '2 days ago'."""
+    minutes = int((now - then).total_seconds() // 60)
+    for size, unit in ((24 * 60, "day"), (60, "hour"), (1, "minute")):
+        if minutes >= size:
+            n = minutes // size
+            return f"{n} {unit}{'s' if n > 1 else ''} ago"
+    return "just now"
