@@ -38,7 +38,7 @@ def connect(path: Path) -> sqlite3.Connection:
 def save_scan(conn: sqlite3.Connection, root: Path, items: Iterable[Parsed]) -> ScanCounts:
     """Record one scan of `root`: add/refresh files, mark vanished ones, move progress forward."""
     counts = ScanCounts()
-    known = _known_paths(conn, root)
+    known = under_root(conn, "SELECT file_path FROM library_items", root)
     seen: set[str] = set()
     new_episodes: dict[str, list[Episode]] = defaultdict(list)
     titles: dict[str, str] = {}
@@ -61,10 +61,10 @@ def save_scan(conn: sqlite3.Connection, root: Path, items: Iterable[Parsed]) -> 
     return counts
 
 
-def _known_paths(conn: sqlite3.Connection, root: Path) -> set[str]:
+def under_root(conn: sqlite3.Connection, sql: str, root: Path) -> set[str]:
+    """Paths from a one-column query that live under root."""
     prefix = str(root).rstrip(os.sep) + os.sep
-    rows = conn.execute("SELECT file_path FROM library_items")
-    return {path for (path,) in rows if path.startswith(prefix)}
+    return {path for (path,) in conn.execute(sql) if path.startswith(prefix)}
 
 
 def _insert(conn: sqlite3.Connection, item: Parsed) -> None:

@@ -29,3 +29,9 @@ CREATE TABLE IF NOT EXISTS show_progress (
                         CHECK (progress_state IN ('tracking', 'unverified_pack', 'completed', 'dropped')),
     updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+
+-- Files the user unticked in the review screen: kept out of the library and progress.
+CREATE TABLE IF NOT EXISTS excluded_files (
+    file_path           TEXT PRIMARY KEY,
+    excluded_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);

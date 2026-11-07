@@ -14,10 +14,10 @@ When you ask for something, Curator fetches it from **sources you configure** (f
 
 ## Status
 
-Early build. Working so far: `curator scan` finds movies and TV episodes in a folder (offline) and saves them to a local SQLite database.
+Early build. Working so far: open the app, press **Scan Downloads**, and Curator lists the movies and TV episodes it found (offline). Everything starts ticked; untick what you don't want, then **Save to library** (a local SQLite database).
 
 ```
-uv run curator scan ~/Downloads
+uv run curator
 ```
 
 ## Planned stack

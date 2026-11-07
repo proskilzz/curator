@@ -5,10 +5,11 @@ description = "Local-AI media assistant for macOS"
 requires-python = ">=3.12"
 dependencies = [
     "guessit>=4.4.0",
+    "pywebview>=6.2.1",
 ]
 
 [project.scripts]
-curator = "curator.cli:main"
+curator = "curator.app:main"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14.0"]
@@ -53,7 +54,7 @@ include_external_packages = true
 [[tool.importlinter.contracts]]
 name = "Layers: cli on top, then scan/store, then progress, then model"
 type = "layers"
-layers = ["curator.cli", "curator.scan | curator.store", "curator.progress", "curator.model"]
+layers = ["curator.app", "curator.scan | curator.store", "curator.progress", "curator.model"]
 
 [[tool.importlinter.contracts]]
 name = "Scan is offline: no network or database modules"
@@ -61,3 +62,7 @@ type = "forbidden"
 source_modules = ["curator.scan"]
 forbidden_modules = ["sqlite3", "socket", "urllib", "http", "curator.store"]
 allow_indirect_imports = true
+
+[[tool.mypy.overrides]]
+module = ["webview"]
+ignore_missing_imports = true

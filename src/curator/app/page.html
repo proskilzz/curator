@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Curator</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e4e1db;
+    --accent: #2f6fde; --accent-ink: #ffffff; --ok: #1f8a4c; --off: #a8a39a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --card: #201f1d; --ink: #ecebe7; --muted: #9b978f; --line: #34322e;
+      --accent: #5b8ff0; --accent-ink: #0d0d0c; --ok: #4cc27f; --off: #5d5a54;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 28px 20px 110px; }
+  h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 10px 18px; cursor: pointer; }
+  .primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .primary:disabled { opacity: .5; cursor: default; }
+  .ghost { background: transparent; color: var(--accent); padding: 6px 8px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+           padding: 16px 18px; margin: 18px 0; }
+  .panel p { margin: 4px 0; }
+  .muted { color: var(--muted); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 26px 0 8px; }
+  .group { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+           overflow: hidden; margin-bottom: 12px; }
+  .ghead { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+           border-bottom: 1px solid var(--line); font-weight: 600; }
+  label.row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px;
+              border-top: 1px solid var(--line); cursor: pointer; }
+  label.row:first-of-type { border-top: 0; }
+  .group .ghead + label.row { border-top: 0; }
+  label.row.off .t, label.row.off .d { color: var(--off); text-decoration: line-through; }
+  input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+  .t { font-weight: 600; }
+  .d { color: var(--muted); font-size: 14px; }
+  .f { color: var(--muted); font-size: 12px; word-break: break-all; margin-top: 2px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
+           border: 1px solid var(--line); color: var(--muted); margin-left: 6px; white-space: nowrap; }
+  .badge.new { color: var(--ok); border-color: var(--ok); }
+  .grow { flex: 1; min-width: 0; }
+  footer { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card);
+           border-top: 1px solid var(--line); }
+  footer .in { max-width: 720px; margin: 0 auto; padding: 12px 20px; display: flex;
+               align-items: center; gap: 10px; }
+  .hidden { display: none; }
+  .done { color: var(--ok); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Curator</h1>
+  <p class="sub" id="folder">Find the movies and shows in your Downloads.</p>
+  <button class="primary" id="scan">Scan Downloads</button>
+
+  <div class="panel hidden" id="summary"></div>
+  <div id="list"></div>
+  <div class="panel hidden" id="result"></div>
+</main>
+
+<footer class="hidden" id="bar">
+  <div class="in">
+    <span class="grow" id="count"></span>
+    <button class="ghost" id="all">Tick all</button>
+    <button class="ghost" id="none">Untick all</button>
+    <button class="primary" id="save">Save to library</button>
+  </div>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+let items = [];
+
+function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
+
+async function scan() {
+  $("scan").disabled = true;
+  $("scan").textContent = "Scanning…";
+  $("result").classList.add("hidden");
+  const data = await window.pywebview.api.scan();
+  items = data.items;
+  $("folder").textContent = data.folder;
+  renderSummary(data);
+  renderList();
+  $("scan").disabled = false;
+  $("scan").textContent = "Scan again";
+}
+
+function renderSummary(data) {
+  const movies = items.filter((i) => i.kind === "movie").length;
+  const eps = items.length - movies;
+  const shows = new Set(items.filter((i) => i.kind === "episode").map((i) => i.title)).size;
+  const box = $("summary");
+  box.replaceChildren();
+  box.append(el("p", "t",
+    `Found ${plural(movies, "movie")} and ${plural(eps, "episode")} from ${plural(shows, "show")}.`));
+  const skippedTotal = data.skipped.reduce((s, x) => s + x.count, 0);
+  if (skippedTotal) {
+    box.append(el("p", "muted", `Ignored ${skippedTotal} other videos:`));
+    for (const s of data.skipped) box.append(el("p", "muted", `· ${s.count} ${s.reason}`));
+  }
+  box.append(el("p", "muted", "Everything is ticked. Untick anything you don't want in your library."));
+  box.classList.remove("hidden");
+}
+
+function row(item) {
+  const label = el("label", "row");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = item.checked;
+  box.addEventListener("change", () => { item.checked = box.checked; update(); });
+  const text = el("div", "grow");
+  const top = el("div");
+  top.append(el("span", "t", item.kind === "movie" ? item.title : item.detail));
+  top.append(el("span", "badge" + (item.status === "new" ? " new" : ""), item.status));
+  text.append(top);
+  const extra = [item.kind === "movie" ? item.detail : "", item.quality].filter(Boolean).join(" · ");
+  if (extra) text.append(el("div", "d", extra));
+  text.append(el("div", "f", item.file));
+  label.append(box, text);
+  item.row = label;
+  item.box = box;
+  return label;
+}
+
+function group(title, members) {
+  const g = el("div", "group");
+  if (title) {
+    const head = el("label", "ghead");
+    const box = el("input");
+    box.type = "checkbox";
+    box.addEventListener("change", () => {
+      members.forEach((m) => { m.checked = box.checked; });
+      update();
+    });
+    head.append(box, el("span", "grow", title), el("span", "muted", plural(members.length, "episode")));
+    g.append(head);
+    members.groupBox = box;
+  }
+  members.forEach((m) => g.append(row(m)));
+  return g;
+}
+
+let groups = [];
+function renderList() {
+  const list = $("list");
+  list.replaceChildren();
+  groups = [];
+  if (!items.length) {
+    list.append(el("div", "panel muted", "No movies or shows found."));
+    $("bar").classList.add("hidden");
+    return;
+  }
+  const movies = items.filter((i) => i.kind === "movie");
+  if (movies.length) {
+    list.append(el("h2", "", "Movies"));
+    list.append(group("", movies));
+  }
+  const shows = new Map();
+  for (const i of items.filter((i) => i.kind === "episode")) {
+    if (!shows.has(i.title)) shows.set(i.title, []);
+    shows.get(i.title).push(i);
+  }
+  if (shows.size) list.append(el("h2", "", "TV shows"));
+  for (const [title, members] of shows) {
+    list.append(group(title, members));
+    groups.push(members);
+  }
+  $("bar").classList.remove("hidden");
+  update();
+}
+
+function update() {
+  for (const i of items) {
+    i.box.checked = i.checked;
+    i.row.classList.toggle("off", !i.checked);
+  }
+  for (const g of groups) {
+    const on = g.filter((m) => m.checked).length;
+    g.groupBox.checked = on === g.length;
+    g.groupBox.indeterminate = on > 0 && on < g.length;
+  }
+  const on = items.filter((i) => i.checked).length;
+  $("count").textContent = `${on} of ${items.length} ticked`;
+}
+
+function setAll(value) { items.forEach((i) => { i.checked = value; }); update(); }
+
+async function save() {
+  $("save").disabled = true;
+  const keep = items.filter((i) => i.checked).map((i) => i.id);
+  const r = await window.pywebview.api.save(keep);
+  const box = $("result");
+  box.replaceChildren();
+  box.append(el("p", "done", "Saved."));
+  box.append(el("p", "",
+    `${r.added} added, ${r.kept} already in your library, ${r.excluded} left out.`));
+  if (r.gone) box.append(el("p", "muted", `${r.gone} earlier files are no longer on disk (your place in those shows is kept).`));
+  for (const s of r.shows) {
+    const note = s.state === "unverified_pack" ? " (whole season downloaded, starting at the first episode)" : "";
+    box.append(el("p", "", `${s.title}: up to ${s.where}${note}`));
+  }
+  box.classList.remove("hidden");
+  box.scrollIntoView({ behavior: "smooth" });
+  $("save").disabled = false;
+}
+
+$("scan").addEventListener("click", scan);
+$("save").addEventListener("click", save);
+$("all").addEventListener("click", () => setAll(true));
+$("none").addEventListener("click", () => setAll(false));
+</script>
+</body>
+</html>
