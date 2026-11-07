@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ./check: every gate must pass before a slice is "done".
+set -uo pipefail
+cd "$(dirname "$0")"
+fail=0
+run() { local name=$1; shift
+  if out=$("$@" 2>&1); then echo "✅ $name"; else echo "❌ $name"; echo "$out" | tail -30; fail=1; fi; }
+run "ruff lint"     uv run ruff check .
+run "ruff format"   uv run ruff format --check .
+run "mypy strict"   uv run mypy
+run "import rules"  uv run lint-imports
+run "pytest + cov"  uv run pytest -q
+exit $fail

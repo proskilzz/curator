@@ -14,7 +14,11 @@ When you ask for something, Curator fetches it from **sources you configure** (f
 
 ## Status
 
-Planning done; building starts now. Nothing to install yet.
+Early build. Working so far: `curator scan` finds movies and TV episodes in a folder (offline) and saves them to a local SQLite database.
+
+```
+uv run curator scan ~/Downloads
+```
 
 ## Planned stack
 

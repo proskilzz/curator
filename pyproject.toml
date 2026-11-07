@@ -1,0 +1,63 @@
+[project]
+name = "curator"
+version = "0.1.0"
+description = "Local-AI media assistant for macOS"
+requires-python = ">=3.12"
+dependencies = [
+    "guessit>=4.4.0",
+]
+
+[project.scripts]
+curator = "curator.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.16",
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.4",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["probes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 6
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["guessit"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=curator --cov-report=term-missing:skip-covered --cov-fail-under=90"
+
+[tool.importlinter]
+root_package = "curator"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers: cli on top, then scan/store, then progress, then model"
+type = "layers"
+layers = ["curator.cli", "curator.scan | curator.store", "curator.progress", "curator.model"]
+
+[[tool.importlinter.contracts]]
+name = "Scan is offline: no network or database modules"
+type = "forbidden"
+source_modules = ["curator.scan"]
+forbidden_modules = ["sqlite3", "socket", "urllib", "http", "curator.store"]
+allow_indirect_imports = true
