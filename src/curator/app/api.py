@@ -3,20 +3,47 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections import Counter
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from curator.model import Episode, Parsed, Skipped
+from curator.app.view import movie_card, show_card
+from curator.enrich import EnrichError, KeyMissing, default_enricher
+from curator.model import Enrichment, Episode, Lookup, Parsed, Skipped
 from curator.scan import scan_folder
-from curator.store import connect, excluded_paths, get_progress, library_paths, save_review
+from curator.store import (
+    connect,
+    due_lookups,
+    enrichments,
+    excluded_paths,
+    get_progress,
+    library_paths,
+    save_enrichment,
+    save_review,
+)
+
+EnricherFactory = Callable[[], Callable[[Lookup], Enrichment]]
+
+NO_KEY = "No TMDB key yet, so shows and movies can't be looked up."
+OFFLINE = "Couldn't reach TMDB or TVmaze. Showing what was found before."
 
 
 class Api:
-    def __init__(self, root: Path, db_path: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        db_path: Path,
+        enricher: EnricherFactory = default_enricher,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         self.root = root
         self.db_path = db_path
         self._found: list[Parsed] = []
+        self._enricher = enricher
+        self._clock = clock
 
     def scan(self) -> dict[str, Any]:
         """Scan the folder (saves nothing). Every item comes back ticked except files the
@@ -52,6 +79,39 @@ class Api:
                 if p
             ],
         }
+
+    def refresh(self) -> dict[str, Any]:
+        """Look up library titles not checked recently, then list shows and movies."""
+        conn = connect(self.db_path)
+        try:
+            looked_up, error = self._look_up_due(conn)
+            today = self._clock().astimezone().date()
+            known = enrichments(conn)
+            shows = [
+                show_card(e, get_progress(conn, e.media_key), today)
+                for e in known
+                if e.kind == "tv"
+            ]
+            movies = [movie_card(e) for e in known if e.kind == "movie"]
+        finally:
+            conn.close()
+        return {"error": error, "looked_up": looked_up, "shows": shows, "movies": movies}
+
+    def _look_up_due(self, conn: sqlite3.Connection) -> tuple[int, str]:
+        due = due_lookups(conn, self._clock())
+        if not due:
+            return 0, ""
+        done = 0
+        try:
+            enrich = self._enricher()
+            for lookup in due:
+                save_enrichment(conn, enrich(lookup), self._clock())
+                done += 1
+        except KeyMissing:
+            return 0, NO_KEY
+        except EnrichError:
+            return done, OFFLINE
+        return done, ""
 
 
 def _sort_key(p: Parsed) -> tuple[int, str, int, int]:

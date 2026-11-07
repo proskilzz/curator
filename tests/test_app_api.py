@@ -106,3 +106,105 @@ def test_bad_ids_ignored(tmp_path: Path) -> None:
     api.scan()
     assert api.save([99, -1])["excluded"] == 2
     assert _rows(db, "SELECT COUNT(*) FROM library_items") == [(0,)]
+
+
+# --- Check new episodes (slice 4) ---
+
+from dataclasses import replace  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
+
+from curator.enrich import EnrichError, KeyMissing  # noqa: E402
+from curator.model import Enrichment, EpisodeRef, Lookup  # noqa: E402
+
+LOOKUPS = [
+    "Night.Office.S02E03.1080p.WEB-DL.mkv",
+    "Night.Office.S02E04.1080p.WEB-DL.mkv",
+    "Some Film 2026 1080p WEB-DL x265.mkv",
+    "Unknown Thing 1999 1080p BluRay.mkv",
+]
+
+
+class FakeEnricher:
+    def __init__(self, fail_after: int | None = None) -> None:
+        self.asked: list[Lookup] = []
+        self.fail_after = fail_after
+
+    def __call__(self, lookup: Lookup) -> Enrichment:
+        if self.fail_after is not None and len(self.asked) >= self.fail_after:
+            raise EnrichError("network error")
+        self.asked.append(lookup)
+        if lookup.title.startswith("Unknown"):
+            return Enrichment(lookup.media_key, lookup.kind, lookup.title, year=lookup.year)
+        base = Enrichment(lookup.media_key, lookup.kind, lookup.title, tmdb_id=1, year=2026)
+        if lookup.kind == "movie":
+            return replace(base, genres=("Thriller",), overview="A film.")
+        return replace(
+            base,
+            show_status="Running",
+            latest=EpisodeRef(2, 8, "2026-11-06"),
+            upcoming=EpisodeRef(2, 9, "2026-11-13"),
+        )
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 11, 6, 12, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def _saved(tmp_path: Path, fake: FakeEnricher, clock: Clock) -> Api:
+    root, db = tmp_path / "dl", tmp_path / "db" / "curator.db"
+    _make(root, LOOKUPS)
+    api = Api(root, db, enricher=lambda: fake, clock=clock)
+    found = api.scan()
+    api.save([i["id"] for i in found["items"]])
+    return api
+
+
+def test_refresh_lists_shows_with_next_episode_and_movies(tmp_path: Path) -> None:
+    fake, clock = FakeEnricher(), Clock()
+    r = _saved(tmp_path, fake, clock).refresh()
+    assert (r["error"], r["looked_up"]) == ("", 3)
+    assert [(lk.kind, lk.title, lk.year) for lk in fake.asked] == [
+        ("movie", "Some Film", 2026),
+        ("movie", "Unknown Thing", 1999),
+        ("tv", "Night Office", None),
+    ]
+    [show] = r["shows"]
+    assert show["at"] == "S02E04"
+    assert show["behind"] == "4 newer episodes out, up to S02E08"
+    assert show["next"] == "Next: S02E09 on Fri 13 Nov (in 7 days)"
+    assert [(m["title"], m["found"], m["genres"]) for m in r["movies"]] == [
+        ("Some Film", True, "Thriller"),
+        ("Unknown Thing", False, ""),
+    ]
+
+
+def test_refresh_uses_the_cache_until_it_is_stale(tmp_path: Path) -> None:
+    fake, clock = FakeEnricher(), Clock()
+    api = _saved(tmp_path, fake, clock)
+    api.refresh()
+    assert api.refresh()["looked_up"] == 0
+    clock.now += timedelta(hours=13)  # shows are stale, movies are not
+    assert api.refresh()["looked_up"] == 1
+    clock.now += timedelta(days=3)  # 'not found' gets retried after 3 days
+    assert [lk.title for lk in fake.asked[-2:]] == ["Night Office", "Night Office"]
+    api.refresh()
+    assert "Unknown Thing" in [lk.title for lk in fake.asked[-2:]]
+
+
+def test_refresh_without_a_key_or_network(tmp_path: Path) -> None:
+    def no_key() -> FakeEnricher:
+        raise KeyMissing("none")
+
+    clock = Clock()
+    api = _saved(tmp_path, FakeEnricher(), clock)
+    api._enricher = no_key
+    r = api.refresh()
+    assert r["error"].startswith("No TMDB key") and r["shows"] == [] and r["looked_up"] == 0
+    api._enricher = lambda: FakeEnricher(fail_after=1)
+    r = api.refresh()
+    assert r["error"].startswith("Couldn't reach") and r["looked_up"] == 1
+    assert len(r["movies"]) == 1

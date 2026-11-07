@@ -84,3 +84,47 @@ class Progress:
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+# --- Enrichment (slice 4): what crosses scan/store -> enrich -> store -> app ---
+
+
+@dataclass(frozen=True)
+class Lookup:
+    """One library title the enricher should match online."""
+
+    media_key: str  # offline key, e.g. 'local:tv:severance'
+    kind: str  # 'movie' or 'tv'
+    title: str
+    year: int | None = None
+
+
+@dataclass(frozen=True)
+class EpisodeRef:
+    season: int
+    episode: int
+    air_date: str | None  # 'YYYY-MM-DD', or None when not announced
+
+
+@dataclass(frozen=True)
+class Enrichment:
+    """What TMDB + TVmaze said about one library title. tmdb_id None = not found."""
+
+    media_key: str
+    kind: str  # 'movie' or 'tv'
+    title: str
+    tmdb_id: int | None = None
+    year: int | None = None
+    imdb_id: str | None = None
+    tvdb_id: int | None = None
+    tvmaze_id: int | None = None
+    overview: str = ""  # sanitised, at most 300 chars
+    genres: tuple[str, ...] = ()
+    poster_path: str | None = None  # TMDB image path like '/abc.jpg'
+    show_status: str | None = None  # TVmaze: 'Running', 'Ended', ...
+    latest: EpisodeRef | None = None  # last episode that has aired
+    upcoming: EpisodeRef | None = None  # next announced episode
+
+    @property
+    def found(self) -> bool:
+        return self.tmdb_id is not None

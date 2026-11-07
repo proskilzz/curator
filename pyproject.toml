@@ -52,15 +52,34 @@ root_package = "curator"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Layers: cli on top, then scan/store, then progress, then model"
+name = "Layers: app on top, then scan/store/enrich (independent), then progress, then model"
 type = "layers"
-layers = ["curator.app", "curator.scan | curator.store", "curator.progress", "curator.model"]
+layers = [
+    "curator.app",
+    "curator.scan | curator.store | curator.enrich",
+    "curator.progress",
+    "curator.model",
+]
 
 [[tool.importlinter.contracts]]
 name = "Scan is offline: no network or database modules"
 type = "forbidden"
 source_modules = ["curator.scan"]
 forbidden_modules = ["sqlite3", "socket", "urllib", "http", "curator.store"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Enrich is the only network code and runs no SQL"
+type = "forbidden"
+source_modules = ["curator.enrich"]
+forbidden_modules = ["sqlite3", "curator.store", "curator.scan"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Store and app never open a network connection themselves"
+type = "forbidden"
+source_modules = ["curator.store", "curator.app"]
+forbidden_modules = ["socket", "urllib", "http"]
 allow_indirect_imports = true
 
 [[tool.mypy.overrides]]

@@ -6,12 +6,12 @@
 <style>
   :root {
     --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e4e1db;
-    --accent: #2f6fde; --accent-ink: #ffffff; --ok: #1f8a4c; --off: #a8a39a;
+    --accent: #2f6fde; --accent-ink: #ffffff; --ok: #1f8a4c; --off: #a8a39a; --warn: #b4560f;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #161615; --card: #201f1d; --ink: #ecebe7; --muted: #9b978f; --line: #34322e;
-      --accent: #5b8ff0; --accent-ink: #0d0d0c; --ok: #4cc27f; --off: #5d5a54;
+      --accent: #5b8ff0; --accent-ink: #0d0d0c; --ok: #4cc27f; --off: #5d5a54; --warn: #f0a35b;
     }
   }
   * { box-sizing: border-box; }
@@ -53,17 +53,29 @@
                align-items: center; gap: 10px; }
   .hidden { display: none; }
   .done { color: var(--ok); font-weight: 600; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .secondary { background: var(--card); color: var(--accent); border: 1px solid var(--line);
+               font-weight: 600; }
+  .secondary:disabled { opacity: .5; cursor: default; }
+  .item { padding: 11px 14px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .warn { color: var(--warn); font-weight: 600; font-size: 14px; }
+  .soon { color: var(--ok); font-size: 14px; }
 </style>
 </head>
 <body>
 <main>
   <h1>Curator</h1>
   <p class="sub" id="folder">Find the movies and shows in your Downloads.</p>
-  <button class="primary" id="scan">Scan Downloads</button>
+  <div class="actions">
+    <button class="primary" id="scan">Scan Downloads</button>
+    <button class="secondary" id="check">Check new episodes</button>
+  </div>
 
   <div class="panel hidden" id="summary"></div>
   <div id="list"></div>
   <div class="panel hidden" id="result"></div>
+  <div id="library"></div>
 </main>
 
 <footer class="hidden" id="bar">
@@ -215,11 +227,65 @@ async function save() {
     box.append(el("p", "", `${s.title}: up to ${s.where}${note}`));
   }
   box.classList.remove("hidden");
-  box.scrollIntoView({ behavior: "smooth" });
   $("save").disabled = false;
+  await check();
+}
+
+async function check() {
+  $("check").disabled = true;
+  $("check").textContent = "Checking…";
+  const r = await window.pywebview.api.refresh();
+  renderLibrary(r);
+  $("check").disabled = false;
+  $("check").textContent = "Check new episodes";
+}
+
+function showItem(s) {
+  const box = el("div", "item");
+  const top = el("div");
+  top.append(el("span", "t", s.title));
+  if (s.at) top.append(el("span", "badge", `you're at ${s.at}`));
+  box.append(top);
+  if (!s.found) { box.append(el("div", "d", "Not found on TMDB")); return box; }
+  if (s.behind) box.append(el("div", "warn", s.behind));
+  if (s.next) box.append(el("div", "soon", s.next));
+  if (s.genres) box.append(el("div", "f", s.genres));
+  return box;
+}
+
+function movieItem(m) {
+  const box = el("div", "item");
+  const top = el("div");
+  top.append(el("span", "t", m.title));
+  if (m.year) top.append(el("span", "badge", String(m.year)));
+  box.append(top);
+  if (!m.found) { box.append(el("div", "d", "Not found on TMDB")); return box; }
+  if (m.genres) box.append(el("div", "d", m.genres));
+  if (m.overview) box.append(el("div", "f", m.overview));
+  return box;
+}
+
+function renderLibrary(r) {
+  const lib = $("library");
+  lib.replaceChildren();
+  if (r.error) lib.append(el("div", "panel warn", r.error));
+  if (!r.shows.length && !r.movies.length) {
+    lib.append(el("div", "panel muted", "Nothing in your library yet. Scan and save first."));
+    return;
+  }
+  const sections = [["Your shows", r.shows, showItem], ["Your movies", r.movies, movieItem]];
+  for (const [title, list, make] of sections) {
+    if (!list.length) continue;
+    lib.append(el("h2", "", title));
+    const g = el("div", "group");
+    list.forEach((x) => g.append(make(x)));
+    lib.append(g);
+  }
+  lib.scrollIntoView({ behavior: "smooth" });
 }
 
 $("scan").addEventListener("click", scan);
+$("check").addEventListener("click", check);
 $("save").addEventListener("click", save);
 $("all").addEventListener("click", () => setAll(true));
 $("none").addEventListener("click", () => setAll(false));

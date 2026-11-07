@@ -35,3 +35,29 @@ CREATE TABLE IF NOT EXISTS excluded_files (
     file_path           TEXT PRIMARY KEY,
     excluded_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+
+-- Slice 4: what TMDB + TVmaze said about each library title, keyed by the offline media_key
+-- (library_items.media_key never changes). tmdb_id NULL = looked up, not found.
+CREATE TABLE IF NOT EXISTS enrichment_cache (
+    media_key           TEXT PRIMARY KEY,
+    kind                TEXT NOT NULL CHECK (kind IN ('movie', 'tv')),
+    title               TEXT NOT NULL,
+    tmdb_id             INTEGER,
+    release_year        INTEGER,
+    imdb_id             TEXT,
+    tvdb_id             INTEGER,
+    tvmaze_id           INTEGER,
+    overview_sanitized  TEXT NOT NULL DEFAULT '',
+    genres_json         TEXT NOT NULL DEFAULT '[]',
+    poster_path         TEXT,
+    show_status         TEXT,
+    latest_season       INTEGER,
+    latest_episode      INTEGER,
+    latest_air_date     TEXT,
+    next_season         INTEGER,
+    next_episode        INTEGER,
+    next_air_date       TEXT,
+    fetched_at          TEXT NOT NULL,
+    expires_at          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_enrichment_tmdb ON enrichment_cache(tmdb_id, kind);
