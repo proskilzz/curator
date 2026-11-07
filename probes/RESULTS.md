@@ -16,3 +16,7 @@ Notes
 - The schema (grammar) makes JSON validity and id safety a property of llama.cpp, not the model: invalid ids could not be emitted.
 - Both models put a pick in `picks` on T02/T03/T09 although the prompt asked for empty picks. Harmless; the app should ignore picks when an intent is set.
 - Qwen ranked Se7en/Oldboy above Sicario for a Villeneuve fan (T01): weaker taste ranking.
+
+## P2: TMDB key (card #301), 2026-11-06
+- Key in Keychain: service `curator-tmdb`, account `curator` (v3 API key, 32 chars); read with `security find-generic-password -s curator-tmdb -w`, never printed or stored in the repo
+- `probes/p2_tmdb.py`: search/movie Se7en 1995 -> id 807; search/tv Severance -> id 95396, external_ids imdb tt11280740, tvdb 371980 (the TMDB/TVmaze crosswalk ids work)
